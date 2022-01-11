@@ -1,0 +1,13 @@
+version: "3"
+services:
+  go:
+    image: victorargento/hello-app:go
+    restart: always
+    ports:
+      - "4040:4000"
+
+  node:
+    image: victorargento/hello-app:node
+    restart: always
+    ports:
+      - "4041:4000"
