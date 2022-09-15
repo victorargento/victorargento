@@ -1,0 +1,86 @@
+name: Make a cocktail
+on:
+  workflow_dispatch:
+    inputs:
+      cocktail_drink:
+        type: string
+        default: Mojito
+        description: Input your cocktail!
+jobs:
+  recipe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup node v18
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+
+      - name: Get recipe
+        run: |
+          async function request(cocktail) {
+              const res = await fetch(`https://www.thecocktaildb.com/api/json/v1/1/search.php?s=${cocktail.slice(1)}`);
+              if (res.ok) {
+                  return res.json();
+              }
+          }
+          function printIngredient(drink) {
+              let ingredients = '';
+              for (let index = 1; index < 15; index++) {
+                  let ingredient = eval(`drink.strIngredient${index}`);
+                  let measure = eval(`drink.strMeasure${index}`);
+                  if (ingredient != null && measure != null)
+                      ingredients = `${ingredients} \\n ${measure}${ingredient.toLowerCase()}`;
+                  if (ingredient != null && measure == null)
+                      ingredients = `${ingredients} \\n ${ingredient.toLowerCase()}`;
+              }
+              console.log(`::set-output name=INGREDIENTS::${ingredients.slice(4)}`);
+          }
+          function printInstructions(drink) {
+              console.log(`::set-output name=INSTRUCTIONS::${drink.strInstructions}`);
+          }
+          async function main() {
+              const { drinks } = await request(process.env.DRINK);
+              if (drinks == null) {
+                  console.log('::set-output name=COCKTAIL_NOT_FOUND::true');
+              } else {
+                  console.log(`::set-output name=DRINK_NAME::${drinks[0].strDrink}`);
+                  console.log(`::set-output name=DRINK_IMAGE::${drinks[0].strDrinkThumb}`);
+                  printInstructions(drinks[0]);
+                  printIngredient(drinks[0]);
+              }
+          }
+          main();
+        shell: node {0}
+        id: cocktail
+        env:
+          DRINK: ${{ github.event.inputs.cocktail_drink }}
+
+      - name: Drink name & image
+        if: ${{ steps.cocktail.outputs.COCKTAIL_NOT_FOUND != 'true' }}
+        run: |
+          echo "# $DRINK_NAME" >> $GITHUB_STEP_SUMMARY
+          echo "<img src="$DRINK_IMAGE" width="300" height="300" />" >> $GITHUB_STEP_SUMMARY
+        env:
+            DRINK_NAME: ${{ steps.cocktail.outputs.DRINK_NAME }}
+            DRINK_IMAGE: ${{ steps.cocktail.outputs.DRINK_IMAGE }}
+
+      - name: Instructions
+        if: ${{ steps.cocktail.outputs.COCKTAIL_NOT_FOUND != 'true' }}
+        run: |
+          echo "## Instructions" >> $GITHUB_STEP_SUMMARY
+          echo "$INSTRUCTIONS" >> $GITHUB_STEP_SUMMARY
+        env:
+            INSTRUCTIONS: ${{ steps.cocktail.outputs.INSTRUCTIONS }}
+
+      - name: Ingredients
+        if: ${{ steps.cocktail.outputs.COCKTAIL_NOT_FOUND != 'true' }}
+        run: |
+          echo "## Ingredients" >> $GITHUB_STEP_SUMMARY
+          echo -e "$INGREDIENTS" >> $GITHUB_STEP_SUMMARY
+        env:
+            INGREDIENTS: ${{ steps.cocktail.outputs.INGREDIENTS }}
+
+      - name: Recipe not found
+        if: ${{ steps.cocktail.outputs.COCKTAIL_NOT_FOUND == 'true' }}
+        run: |
+          echo "## Recipe not found" >> $GITHUB_STEP_SUMMARY
